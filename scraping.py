@@ -3,7 +3,7 @@ import csv
 import os
 import re
 # permet de convertir des URL relatives en URL absolues.
-from urllib.parse import urljoin
+from urllib.parse import urljoin, urlparse
 
 # faire les requêtes HTTP
 import requests
@@ -12,6 +12,7 @@ from bs4 import BeautifulSoup
 
 BASE_URL = "https://books.toscrape.com/"
 EXPORT_DIR = "donnees_extraites"
+IMAGES_DIR = os.path.join(EXPORT_DIR, "images")
 FIELDNAMES = [
     "product_page_url",
     "upc",
@@ -23,6 +24,7 @@ FIELDNAMES = [
     "category",
     "review_rating",
     "image_url",
+    "image_path",
 ]
 
 
@@ -138,15 +140,46 @@ def write_category_csv(category_name, books_data):
     return output_path
 
 
+# Fonction pour télécharger l'image d'un produit dans un dossier dédié
+def download_product_image(image_url, category_name, upc, title):
+    category_image_dir = os.path.join(IMAGES_DIR, sanitize_filename(category_name))
+    os.makedirs(category_image_dir, exist_ok=True)
+
+    image_ext = os.path.splitext(urlparse(image_url).path)[1] or ".jpg"
+    safe_title = sanitize_filename(title)[:80] or "livre"
+    image_filename = f"{upc}_{safe_title}{image_ext}"
+    image_path = os.path.join(category_image_dir, image_filename)
+
+    if not os.path.exists(image_path):
+        response = requests.get(image_url, timeout=15)
+        response.raise_for_status()
+        with open(image_path, "wb") as image_file:
+            image_file.write(response.content)
+
+    return image_path
+
+
 # Fonction principale pour le processus de scraping et d'exportation des données
 def main():
     os.makedirs(EXPORT_DIR, exist_ok=True)  # Crée le dossier d'exportation s'il n'existe pas déjà
+    os.makedirs(IMAGES_DIR, exist_ok=True)
 
     categories = get_all_categories(BASE_URL)
 
     for category_name, category_url in categories:
         product_urls = list(iter_category_product_urls(category_url))
-        all_books_data = [extract_product_data(url) for url in product_urls]
+
+        all_books_data = []
+        for url in product_urls:
+            product_data = extract_product_data(url)
+            local_image_path = download_product_image(
+                product_data["image_url"],
+                category_name,
+                product_data["upc"],
+                product_data["title"],
+            )
+            product_data["image_path"] = local_image_path
+            all_books_data.append(product_data)
 
         # On écrit les données extraites dans un fichier CSV avec les en-têtes correspondants
         output_path = write_category_csv(category_name, all_books_data)
