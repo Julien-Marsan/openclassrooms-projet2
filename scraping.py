@@ -1,29 +1,60 @@
+import csv
+# sert à gérer les dossiers/chemins
+import os
+# permet de convertir des URL relatives en URL absolues.
+from urllib.parse import urljoin
+
+# faire les requêtes HTTP
 import requests
 from bs4 import BeautifulSoup
-import csv
-import os
 
-url = "https://books.toscrape.com/catalogue/sapiens-a-brief-history-of-humankind_996/index.html"
-response = requests.get(url)
-response.encoding = "utf-8"
 
-if response.status_code != 200:
-    print("Erreur :", response.status_code)
-else:
-    soup = BeautifulSoup(response.text, "html.parser")
+CATEGORY_URL = "https://books.toscrape.com/catalogue/category/books/mystery_3/index.html"
+EXPORT_DIR = "donnees_extraites"
+
+# Fonction pour récupérer et parser le contenu d'une page
+def get_soup(url):
+    response = requests.get(url, timeout=15)
+    response.raise_for_status()
+    response.encoding = "utf-8"
+    return BeautifulSoup(response.text, "html.parser")
+
+# Fonction pour extraire les données d'une page de produit
+def extract_product_data(product_url):
+    soup = get_soup(product_url)
 
     upc = soup.find("th", string="UPC").find_next_sibling("td").get_text(strip=True)
-    title = soup.find("h1").get_text()
-    price_including_tax = soup.find("th", string="Price (incl. tax)").find_next_sibling("td").get_text(strip=True)
-    price_excluding_tax = soup.find("th", string="Price (excl. tax)").find_next_sibling("td").get_text(strip=True)
-    number_available = soup.find("th", string="Availability").find_next_sibling("td").get_text(strip=True)
-    product_description = soup.find("div", id="product_description").find_next_sibling("p").get_text(strip=True)
+    title = soup.find("h1").get_text(strip=True)
+    price_including_tax = (
+        soup.find("th", string="Price (incl. tax)")
+        .find_next_sibling("td")
+        .get_text(strip=True)
+    )
+    price_excluding_tax = (
+        soup.find("th", string="Price (excl. tax)")
+        .find_next_sibling("td")
+        .get_text(strip=True)
+    )
+    number_available = (
+        soup.find("th", string="Availability")
+        .find_next_sibling("td")
+        .get_text(" ", strip=True)
+    )
+# Certains produits n'ont pas de description, il faut vérifier que les éléments existent avant d'essayer de les extraire
+    description_block = soup.find("div", id="product_description")
+    product_description = ""
+    if description_block and description_block.find_next_sibling("p"):
+        product_description = description_block.find_next_sibling("p").get_text(strip=True)
+        
+# La catégorie est généralement le dernier lien dans la section "breadcrumb"
     category = soup.select("ul.breadcrumb li a")[-1].get_text(strip=True)
     review_rating = soup.find("p", class_="star-rating")["class"][1]
     image_rel = soup.find("div", class_="item active").find("img")["src"]
-    image_url = image_rel.replace("../../", "https://books.toscrape.com/")
-
-    donnees_livre = {
+    image_url = urljoin(product_url, image_rel)
+    
+# On retourne un dictionnaire avec toutes les données extraites
+    return {
+        "product_page_url": product_url,
         "upc": upc,
         "title": title,
         "price_including_tax": price_including_tax,
@@ -35,18 +66,52 @@ else:
         "image_url": image_url,
     }
 
-    print(donnees_livre)
-    
-    # Creation et export dans dossier
-    export_dir ="donnees_extraites"
-    os.makedirs(export_dir, exist_ok=True)
+# Fonction pour répéter l'opération sur toutes les pages d'une catégorie et extraire les URLs des produits
+def iter_category_product_urls(category_url):
+    next_page_url = category_url
+# On continue à parcourir les pages tant qu'il y a un lien "next" pour la page suivante
+    while next_page_url:
+        soup = get_soup(next_page_url)
 
-    filename = f"{title[:30].replace(' ', '_').replace(':', '')}.csv"
-    filename = os.path.join(export_dir, filename)
+        for article in soup.select("article.product_pod h3 a"):
+            href = article.get("href")
+            if href:
+                yield urljoin(next_page_url, href)
 
-    with open(filename, "w", newline="", encoding="utf-8-sig") as f:
-        writer = csv.DictWriter(f, fieldnames=donnees_livre.keys())
+        next_link = soup.select_one("li.next a")
+        if next_link and next_link.get("href"):
+            next_page_url = urljoin(next_page_url, next_link["href"])
+        else:
+            next_page_url = None
+
+# Fonction principale pour le processus de scraping et d'exportation des données
+def main():
+    os.makedirs(EXPORT_DIR, exist_ok=True) # Crée le dossier d'exportation s'il n'existe pas déjà
+
+    product_urls = list(iter_category_product_urls(CATEGORY_URL))
+    all_books_data = [extract_product_data(url) for url in product_urls]
+
+    output_path = os.path.join(EXPORT_DIR, "mystery.csv")
+    fieldnames = [
+        "product_page_url",
+        "upc",
+        "title",
+        "price_including_tax",
+        "price_excluding_tax",
+        "number_available",
+        "product_description",
+        "category",
+        "review_rating",
+        "image_url",
+    ]
+# On écrit les données extraites dans un fichier CSV avec les en-têtes correspondants
+    with open(output_path, "w", newline="", encoding="utf-8-sig") as file:
+        writer = csv.DictWriter(file, fieldnames=fieldnames)
         writer.writeheader()
-        writer.writerow(donnees_livre)
+        writer.writerows(all_books_data)
 
-print(f"Données extraites et enregistrées dans {filename}")
+    print(f"{len(all_books_data)} livres exportés dans : {output_path}")
+
+# Le point d'entrée du script
+if __name__ == "__main__":
+    main()
