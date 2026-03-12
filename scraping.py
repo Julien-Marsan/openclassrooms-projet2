@@ -1,6 +1,7 @@
 import requests
 from bs4 import BeautifulSoup
 import csv
+import os
 
 url = "https://books.toscrape.com/catalogue/sapiens-a-brief-history-of-humankind_996/index.html"
 response = requests.get(url)
@@ -35,8 +36,13 @@ else:
     }
 
     print(donnees_livre)
+    
+    # Creation et export dans dossier
+    export_dir ="donnees_extraites"
+    os.makedirs(export_dir, exist_ok=True)
 
     filename = f"{title[:30].replace(' ', '_').replace(':', '')}.csv"
+    filename = os.path.join(export_dir, filename)
 
     with open(filename, "w", newline="", encoding="utf-8-sig") as f:
         writer = csv.DictWriter(f, fieldnames=donnees_livre.keys())
