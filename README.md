@@ -1,118 +1,74 @@
-# OpenClassrooms – Projet 2 (Books to Scrape)
+# Projet 2 – Scraper le site Books to Scrape
 
-Ce projet contient un script Python qui récupère les données produits du site **Books to Scrape** et exporte les résultats localement.
+Ce projet fait partie de ma formation Python chez OpenClassrooms. L'idée est simple : aller chercher automatiquement les infos de tous les livres du site [Books to Scrape](https://books.toscrape.com/) et les sauvegarder sur mon ordinateur.
 
-## Objectif actuel
+## Ce que fait le script
 
-Le script [`scraping.py`](scraping.py:1) :
-- parcourt **toutes les catégories** depuis la page d'accueil ;
-- gère automatiquement la **pagination** de chaque catégorie ;
-- visite chaque fiche produit ;
-- extrait les données demandées ;
-- génère **un CSV par catégorie** ;
-- télécharge et enregistre **l'image de chaque livre**.
+Le fichier [`scraping.py`](scraping.py) s'occupe de tout :
 
-URL de base utilisée :
+1. Il va sur la page d'accueil et récupère la liste de toutes les catégories de livres
+2. Pour chaque catégorie, il parcourt toutes les pages (même s'il y en a plusieurs)
+3. Il visite la fiche de chaque livre pour en extraire les infos
+4. Il enregistre tout dans un fichier CSV par catégorie
+5. Il télécharge aussi la couverture de chaque livre dans un dossier
 
-`https://books.toscrape.com/`
+## Quelles infos sont récupérées ?
 
-## Données extraites
+Pour chaque livre, le script récupère :
 
-Colonnes exportées dans le CSV :
+- L'URL de la page du livre
+- Le code UPC (identifiant unique)
+- Le titre
+- Le prix TTC et le prix HT
+- Le nombre d'exemplaires en stock
+- La description du livre
+- La catégorie
+- La note (nombre d'étoiles)
+- L'URL de l'image de couverture
+- Le chemin local de l'image téléchargée
 
-- `product_page_url`
-- `upc`
-- `title`
-- `price_including_tax`
-- `price_excluding_tax`
-- `number_available`
-- `product_description`
-- `category`
-- `review_rating`
-- `image_url`
-- `image_path`
+## Comment installer le projet
 
-## Prérequis
+Il faut Python 3.10 ou plus récent.
 
-- Python 3.10+
-- Dépendances :
-  - `requests`
-  - `beautifulsoup4`
-
-Le fichier [`requirements.txt`](requirements.txt) est fourni pour installer exactement les librairies nécessaires.
-
-Installation rapide :
-
-```bash
-pip install requests beautifulsoup4
-```
-
-Installation recommandée (environnement virtuel) :
+Je recommande de créer un environnement virtuel pour ne pas mélanger les librairies avec d'autres projets :
 
 ```bash
 python -m venv .venv
 ```
 
-Sous Windows (cmd) :
+Puis on l'active (sous Windows) :
 
 ```bat
 .venv\Scripts\activate
+```
+
+Et on installe les dépendances :
+
+```bash
 pip install -r requirements.txt
 ```
 
-## Exécution
+Le projet utilise deux librairies : `requests` (pour télécharger les pages web) et `beautifulsoup4` (pour lire le contenu HTML).
 
-Depuis la racine du projet, lancer :
+## Comment lancer le script
+
+Une fois l'installation faite, il suffit de lancer :
 
 ```bash
 python scraping.py
 ```
 
-Le script principal est [`scraping.py`](scraping.py:1).
+Le script va tourner pendant quelques minutes le temps de parcourir tout le site.
 
-## Vérification rapide après exécution
+## Où trouver les résultats
 
-- Vérifier la présence des CSV dans [`donnees_extraites`](donnees_extraites)
-- Vérifier la présence des images dans [`donnees_extraites/images`](donnees_extraites/images)
-- Ouvrir un CSV (ex: [`mystery.csv`](donnees_extraites/mystery.csv)) et confirmer que la colonne `image_path` contient des chemins locaux valides
+Tout est enregistré dans le dossier [`donnees_extraites/`](donnees_extraites/) :
 
-## Résultat
+- **Les fichiers CSV** : un par catégorie, par exemple `mystery.csv`, `travel.csv`, etc.
+- **Les images** : dans le sous-dossier [`donnees_extraites/images/`](donnees_extraites/images/), classées par catégorie. Chaque image est nommée avec le code UPC et le titre du livre, par exemple `a897fe39b1053632_sharp_objects.jpg`.
 
-Les exports sont générés dans le dossier [`donnees_extraites`](donnees_extraites) :
+## Bon à savoir
 
-- **CSV par catégorie** :
-  - exemple : [`mystery.csv`](donnees_extraites/mystery.csv)
-  - nom de fichier basé sur la catégorie (normalisé)
-
-- **Images des livres** :
-  - dossier racine : [`donnees_extraites/images`](donnees_extraites/images)
-  - sous-dossiers par catégorie (normalisés)
-  - convention de nommage : `UPC_TITRE_SANITIZE.ext`
-  - exemple : `a897fe39b1053632_sharp_objects.jpg`
-
-## Structure de sortie (exemple)
-
-```text
-donnees_extraites/
-├── mystery.csv
-├── travel.csv
-└── images/
-    ├── mystery/
-    │   ├── a897fe39b1053632_sharp_objects.jpg
-    │   └── ...
-    └── travel/
-        └── ...
-```
-
-## Remarques
-
-- Les dossiers de sortie sont créés automatiquement s'ils n'existent pas.
-- Les URLs d'images relatives sont converties en URLs absolues dans [`extract_product_data()`](scraping.py:60) via [`urljoin`](scraping.py:6).
-- Le téléchargement des images est géré dans [`download_product_image()`](scraping.py:143).
-- Les fichiers CSV et certains dossiers techniques sont ignorés par Git via [`.gitignore`](.gitignore:1).
-
-## Dépannage
-
-- Si `python` n'est pas reconnu, réinstaller Python en cochant l'option *Add Python to PATH*.
-- Si une dépendance manque, relancer `pip install -r requirements.txt` dans l'environnement virtuel activé.
-- Si l'exécution est interrompue, relancer [`python scraping.py`](scraping.py:1) : les dossiers déjà créés sont réutilisés.
+- Les dossiers sont créés automatiquement au lancement, pas besoin de les préparer à l'avance.
+- Les fichiers CSV et les images ne sont pas versionnés (ils sont dans le `.gitignore`).
